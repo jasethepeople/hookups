@@ -31,17 +31,19 @@ A source may be marked unavailable when its response is blocked, missing, or req
 
 ## Scoring
 
-Each eligible listing receives a deterministic score from 0 to 100. Apply hard exclusions and duplicate suppression before ranking. Default weighted inputs:
+Each eligible listing receives a deterministic 0–100 score. Apply hard exclusions and duplicate suppression first. The scorer uses these fixed weights:
 
 | Input | Weight | Default behavior |
 |---|---:|---|
-| Geographic fit | 40% | 100 at the selected center, decays to 0 at the configured radius; exclude listings known to be outside the radius. Missing location receives 0 for this component. |
-| Recency | 25% | 100 if posted within 6 hours; decays linearly to 0 at 72 hours. Unknown timestamps receive 0. |
-| Explicit preference fit | 20% | Match only user-entered preferred terms/tags; do not infer identity or preferences. |
-| Intent clarity | 10% | Deterministic phrase/tag matches for clearly stated availability or intent; no model call required. |
-| Listing completeness | 5% | Presence of useful fields such as body text, locality, and a usable source link. |
+| Distance | 25 | Linear decay from 25 at zero distance to 0 at `max_drive_minutes × 0.5` miles (30 mph estimate); missing distance/profile maximum earns 0. |
+| Last seen | 20 | Linear decay to 0 over 72 hours; missing or invalid timestamps earn 0. |
+| Age | 15 | Full points only when the explicit age lies within the inclusive configured adult age range; missing/out-of-range age earns 0. Under-18 listings are suppressed. |
+| Body type / position | 15 | Split evenly across explicitly configured body-type and position terms; only explicit listing matches count. |
+| Hosting | 10 | Awarded only for an explicit match between the configured host/travel preference and listing text or tags. |
+| Photos | 10 | Awarded when at least one source photo URL is present; images are not downloaded. |
+| Discretion | 5 | Awarded only when an explicit configured discretion term appears in listing text. |
 
-The weighted score is rounded to an integer. Show the score and the contributing reasons on each card. Sort by score descending, then newest posting time. User-entered excluded terms are hard filters. Do not score people using inferred sensitive traits. Listings explicitly indicating a person is under 18, coercion, or non-consent are suppressed rather than ranked.
+Round each component and the total to the nearest integer. A configured dealbreaker phrase in the title, body, tags, or location hard-zeros the total. Superseded duplicates receive 0. `MODEL_URL` may explain the component-based result in two sentences but cannot change the deterministic score; only the component values are sent to it. Cache results by record ID and input hash for up to 30 days. If the model URL is unset or unavailable, use the deterministic two-sentence explanation. Do not score inferred sensitive traits, and suppress records explicitly indicating age under 18, coercion, or non-consent.
 
 ## Digest
 

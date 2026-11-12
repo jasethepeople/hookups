@@ -84,3 +84,16 @@ CREATE INDEX IF NOT EXISTS idx_contacts_listing_contacted_at ON contacts (listin
 CREATE INDEX IF NOT EXISTS idx_drafts_listing_updated_at ON drafts (listing_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_runs_source_started_at ON runs (source, started_at);
 CREATE INDEX IF NOT EXISTS idx_http_cache_source_fetched_at ON http_cache (source, fetched_at);
+
+CREATE TABLE IF NOT EXISTS score_cache (
+    record_id TEXT PRIMARY KEY,
+    input_hash TEXT NOT NULL,
+    score INTEGER NOT NULL CHECK (score BETWEEN 0 AND 100),
+    components_json TEXT NOT NULL,
+    why TEXT NOT NULL,
+    model_used INTEGER NOT NULL DEFAULT 0 CHECK (model_used IN (0, 1)),
+    scored_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_score_cache_expires_at ON score_cache (expires_at);
