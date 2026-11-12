@@ -64,6 +64,14 @@ Round each component and the total to the nearest integer. A configured dealbrea
 
 The dashboard is private and local-only by default; do not expose it on a public network or publish it as a public site.
 
+## Scheduler
+
+- Run Locanto every 30 minutes, Doublelist every 45 minutes, and Squirt and Reddit every 60 minutes.
+- Apply symmetric ±20% interval jitter; scheduled clock-time jobs use a ±12-minute window around their local anchor.
+- Keep the minimum 30-minute source-start floor; defer early jittered source runs until eligible.
+- Render local digests at 08:00 and 18:00 America/Denver time, purge expired data at 03:00, and log every scheduler job in `runs`.
+- Scheduled digests are local drafts. Telegram delivery is only triggered by a private `/hookups` command.
+
 ## Hard rules
 
 - SQLite only; no remote database.
@@ -80,5 +88,4 @@ The dashboard is private and local-only by default; do not expose it on a public
 2. Do you want any other local R4R subreddits in addition to `r/SLCr4r` and `r/r4r`?
 3. Which device/platform should provide Grindr notifications, and what notification-bridge method do you want to use?
 4. Which preferred and excluded terms/tags should seed ranking? Until specified, the preference-fit component is neutral/zero.
-5. Is a daily 8:00 a.m. local Markdown digest plus dashboard view the right cadence and destination, or do you want a different schedule or delivery channel? Any delivery channel still requires approval before sending.
-6. Is local-only dashboard access sufficient, or do you want a private remote-access design later?
+5. Is local-only dashboard access sufficient, or do you want a private remote-access design later?

@@ -5,7 +5,7 @@ import sqlite3
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = PROJECT_ROOT / "db" / "schema.sql"
 DEFAULT_DB_PATH = PROJECT_ROOT / "db" / "hookups.sqlite3"
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 REBUILD_TABLES = ("scores", "contacts", "drafts", "runs", "http_cache", "listings")
 COPY_COLUMNS = {
     "listings": (
@@ -87,6 +87,23 @@ def _upgrade_source_checks(connection: sqlite3.Connection, schema: str) -> None:
             connection.execute(f"DROP TABLE {_quote_identifier(backup)}")
 
 
+def _upgrade_scheduler_runs(connection: sqlite3.Connection, schema: str) -> None:
+    backup = "runs__schema4_backup"
+    if not _table_exists(connection, "runs"):
+        _execute_schema(connection, schema)
+        return
+    if _table_exists(connection, backup):
+        raise RuntimeError(f"Migration backup table already exists: {backup}")
+    connection.execute("DROP INDEX IF EXISTS idx_runs_source_started_at")
+    connection.execute(f"ALTER TABLE runs RENAME TO {_quote_identifier(backup)}")
+    _execute_schema(connection, schema)
+    columns = ", ".join(_quote_identifier(column) for column in COPY_COLUMNS["runs"])
+    connection.execute(
+        f"INSERT INTO runs ({columns}) SELECT {columns} FROM {_quote_identifier(backup)}"
+    )
+    connection.execute(f"DROP TABLE {_quote_identifier(backup)}")
+
+
 def migrate(db_path: str | Path | None = None) -> None:
     path = str(DEFAULT_DB_PATH if db_path is None else db_path)
     if path != ":memory:":
@@ -101,6 +118,7 @@ def migrate(db_path: str | Path | None = None) -> None:
                 f"Database schema version {current_version} is newer than supported version {SCHEMA_VERSION}"
             )
         legacy_upgrade = current_version in (1, 2)
+        runs_upgrade = current_version in (3, 4)
         if current_version == 0:
             legacy_upgrade = any(_table_exists(connection, table) for table in REBUILD_TABLES)
         if legacy_upgrade:
@@ -109,6 +127,8 @@ def migrate(db_path: str | Path | None = None) -> None:
         try:
             if legacy_upgrade:
                 _upgrade_source_checks(connection, schema)
+            elif runs_upgrade:
+                _upgrade_scheduler_runs(connection, schema)
             else:
                 _execute_schema(connection, schema)
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
