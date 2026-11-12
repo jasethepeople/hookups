@@ -1,5 +1,7 @@
 .env
 *.db
+*.sqlite3
 logs/
 out/
 .venv/
+__pycache__/
