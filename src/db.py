@@ -5,7 +5,7 @@ import sqlite3
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = PROJECT_ROOT / "db" / "schema.sql"
 DEFAULT_DB_PATH = PROJECT_ROOT / "db" / "hookups.sqlite3"
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 REBUILD_TABLES = ("scores", "contacts", "drafts", "runs", "http_cache", "listings")
 COPY_COLUMNS = {
     "listings": (

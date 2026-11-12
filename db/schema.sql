@@ -97,3 +97,8 @@ CREATE TABLE IF NOT EXISTS score_cache (
 );
 
 CREATE INDEX IF NOT EXISTS idx_score_cache_expires_at ON score_cache (expires_at);
+
+CREATE TABLE IF NOT EXISTS blocked_domains (
+    domain TEXT PRIMARY KEY,
+    blocked_at TEXT NOT NULL
+);

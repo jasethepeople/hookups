@@ -55,14 +55,14 @@ Round each component and the total to the nearest integer. A configured dealbrea
 
 ## Dashboard pages
 
-1. **Feed:** ranked cards, source and time filters, score explanations, and new/seen state.
+1. **Feed:** cards sorted by score with source and minimum-score filters; show score, distance, age, explanation, and source link.
 2. **Listing detail:** normalized listing text, score breakdown, source timestamps, and original-source link.
-3. **Review:** save, hide, or mark a listing as contacted. V1 does not send messages. If an outbound action is added later, show the exact recipient and message for explicit approval before each send.
+3. **Review:** mark seen, hide, or block a source domain; copy only a user-provided opener. V1 does not send messages. If an outbound action is added later, show the exact recipient and message for explicit approval before each send.
 4. **Digests:** current draft and retained daily digest archive.
 5. **Sources:** enable/disable status, last attempt, next eligible poll time, result counts, errors, and recorded gaps.
 6. **Preferences:** center and radius, preferred/excluded terms, scoring weights, and source toggles.
 
-The dashboard is private and local-only by default; do not expose it on a public network or publish it as a public site.
+The dashboard is private and local-only by default; when hosted on Zo, run it as a private HTTP service. Demo rows live in a separate ignored SQLite database and never enter the live listings database. Do not expose the dashboard on a public network or publish it as a public site.
 
 ## Scheduler
 
