@@ -1,3 +1,5 @@
 # Gaps
 
 - 2026-11-12 recon: direct HTTP HEAD requests to Locanto and Doublelist returned HTTP 403 with `cf-mitigated: challenge`; retrying after backoff with a Chrome user-agent and `Accept-Language` did not change the result. A headed persistent Chromium homepage probe for Doublelist at 21:08 UTC returned HTTP 200 without a proxy, so the homepage challenge cleared. This does not establish proxy needs for city/category search pages, which remain untested because their profile values are unset. Reddit redirected to `www.reddit.com`, which returned HTTP 403. Squirt redirected to `www.squirt.org`, which returned HTTP 404.
+- 2026-11-12 Reddit collection: HTTP 403 challenge on r/SLCr4r persisted after headed Chromium and stealth retry; PROXY_URL is unset, so the proxy rung could not be attempted.
+- 2026-11-12 Reddit collection: HTTP 403 challenge on r/r4r persisted after headed Chromium and stealth retry; PROXY_URL is unset, so the proxy rung could not be attempted.

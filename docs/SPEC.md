@@ -12,8 +12,8 @@ A private, local-only scored feed of local hookup listings. It collects eligible
 |---|---|---|
 | Locanto | Local listings in the configured radius | Public listing pages where available |
 | Doublelist | Local listings in the configured radius | Public listing pages where available |
-| Squirt | Local listings in the configured radius | Public listing pages where available |
-| reddit-r4r (`r/r4r`) | Posts from `r/r4r`, restricted to the configured local area where location is available | Public posts |
+| Squirt | Local listings in the configured radius | Explicitly configured public listings page; do not fetch member-only pages |
+| Reddit (`reddit`) | R4R-tagged posts from `r/SLCr4r` and `r/r4r` | Public subreddit JSON; newest 100 per community |
 | Grindr | Notifications explicitly made available through a user-authorized notification bridge | Passive notification ingestion only; no app actions |
 
 A source may be marked unavailable when its response is blocked, missing, or requires a user-only credential or device setup. Reconnaissance on 2026-11-12 found HTTP 403 challenges from Locanto and Doublelist, a redirect followed by HTTP 404 from Squirt, and a redirect followed by HTTP 403 from Reddit. These are observations, not assumptions that the sources are permanently unavailable. The Grindr bridge is not configured yet.
@@ -74,7 +74,7 @@ The dashboard is private and local-only by default; do not expose it on a public
 ## Open questions for the user
 
 1. What city/ZIP or map point should define “local,” and is the default 25-mile radius acceptable?
-2. Should Reddit be limited to `r/r4r`, or should local R4R subreddits also be included?
+2. Do you want any other local R4R subreddits in addition to `r/SLCr4r` and `r/r4r`?
 3. Which device/platform should provide Grindr notifications, and what notification-bridge method do you want to use?
 4. Which preferred and excluded terms/tags should seed ranking? Until specified, the preference-fit component is neutral/zero.
 5. Is a daily 8:00 a.m. local Markdown digest plus dashboard view the right cadence and destination, or do you want a different schedule or delivery channel? Any delivery channel still requires approval before sending.

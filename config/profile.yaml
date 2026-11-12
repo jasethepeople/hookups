@@ -50,3 +50,15 @@ doublelist:
   city_slug: null
   # Explicit Doublelist category slugs; empty means no search requests.
   categories: []
+
+# Public Squirt cruising-listings page URL; never infer a location from ZIP.
+squirt:
+  # Full HTTPS URL for a public listings page; null means no request.
+  listings_url: null
+
+# Fixed public Reddit communities requested for this source.
+reddit:
+  # Fetch only these subreddits; use the exact public community names.
+  subreddits:
+    - SLCr4r
+    - r4r

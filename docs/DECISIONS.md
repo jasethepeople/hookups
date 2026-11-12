@@ -6,9 +6,11 @@
 - 2026-11-12 — Keep the dashboard local-only and private; do not publish or expose it publicly by default.
 - 2026-11-12 — Use SQLite at `db/hookups.sqlite3`; expire listing content, digest content, and operational run metadata after 30 days, with no bookmark exception.
 - 2026-11-12 — Do not download listing images in v1; show source links instead.
-- 2026-11-12 — Limit Reddit to `r/r4r` until clarified; ingest Grindr passively through an explicitly authorized notification bridge only.
+- 2026-11-12 — Reddit fetches the newest 100 public JSON posts from `r/SLCr4r` and `r/r4r`; treat all `r/r4r` posts as R4R, and in `r/SLCr4r` require an explicit R4R/gender-match bracket or flair tag. Store the source label as `reddit`.
+- 2026-11-12 — Squirt uses only an explicitly configured public listings-page URL; an unset URL means no request, and no member-only page is accessed.
+- 2026-11-12 — Ingest Grindr passively through an explicitly authorized notification bridge only.
 - 2026-11-12 — V1 has no sender; any later outbound action requires explicit approval of that exact action.
 - 2026-11-12 — Keep profile preferences unset until the user explicitly supplies them; age-range filters are adult-only (minimum age 18).
-- 2026-11-12 — Schema v1 uses integer IDs, UTC ISO-8601 text timestamps, source-scoped unique dedupe keys, foreign-key cascades for listing-derived rows, weighted score components (40/25/20/10/5), `PRAGMA user_version`, local unsent drafts and manual contact logs; ignore SQLite database files and Python bytecode in Git.
+- 2026-11-12 — Schema v3 uses integer IDs, UTC ISO-8601 text timestamps, source-scoped unique dedupe keys, foreign-key cascades for listing-derived rows, weighted score components (40/25/20/10/5), `PRAGMA user_version`, local unsent drafts and manual contact logs; preserve legacy `reddit-r4r` rows while new Reddit rows use `reddit`, and ignore SQLite database files and Python bytecode in Git.
 - 2026-11-12 — Locanto searches require an explicit `locanto.city_slug` and category-path list in `config/profile.yaml`; never derive city or category from ZIP/preferences. Missing values mean no request. Cache exact URLs for 30 minutes and never start a source poll inside the 30-minute floor.
 - 2026-11-12 — Doublelist searches require explicit `doublelist.city_slug` and category slugs; no values are inferred from ZIP. Keep its persistent Chromium profile in ignored `cache/` with owner-only permissions, cache responses by exact URL for 30 minutes, and retain the same per-source poll floor.
