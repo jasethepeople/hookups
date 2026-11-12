@@ -1,0 +1,10 @@
+- 2026-11-12 — Poll enabled sources every 60 minutes by default; never start a source poll less than 30 minutes after its prior start.
+- 2026-11-12 — Use a 25-mile radius by default; the center remains unset until the user specifies a locality.
+- 2026-11-12 — Rank deterministically on a 0–100 scale: geographic fit 40%, recency 25%, explicit preference fit 20%, intent clarity 10%, and listing completeness 5%; tie-break by newest posting time.
+- 2026-11-12 — Score only explicit user-entered preferences; do not infer sensitive traits.
+- 2026-11-12 — Generate a local Markdown digest at 8:00 a.m. America/Denver, with up to 20 new or materially updated listings; do not send it automatically.
+- 2026-11-12 — Keep the dashboard local-only and private; do not publish or expose it publicly by default.
+- 2026-11-12 — Use SQLite at `db/hookups.sqlite3`; expire listing content, digest content, and operational run metadata after 30 days, with no bookmark exception.
+- 2026-11-12 — Do not download listing images in v1; show source links instead.
+- 2026-11-12 — Limit Reddit to `r/r4r` until clarified; ingest Grindr passively through an explicitly authorized notification bridge only.
+- 2026-11-12 — V1 has no sender; any later outbound action requires explicit approval of that exact action.
