@@ -47,8 +47,9 @@ Round each component and the total to the nearest integer. A configured dealbrea
 
 ## Digest
 
-- Generate one local Markdown digest daily at 8:00 a.m. America/Denver, plus a matching view in the dashboard.
-- Include up to 20 highest-ranked new or materially updated listings, grouped by source. Each item shows score, locality/distance if known, posted time, title, a short excerpt, matching reasons, and a link to the original listing.
+- Render a local plain-text digest to `out/digest.txt`; include the top 8 total listings with scores at or above 50, grouped alphabetically by source. Show title, score, distance, age, the two-sentence rationale, and original URL.
+- Add a `New since last digest` count based on eligible records whose `last_seen_at` is later than the previous digest’s `Generated` timestamp. On the first render, count all eligible records with a `last_seen_at`.
+- The suppressed count includes normalization suppressions, hard-zero dealbreakers, and dedupe losers. Listings below threshold and entries beyond the top-8 cap are not counted as suppressed.
 - Keep digest files in `out/`; they contain source-derived content and follow the same 30-day retention period.
 - A digest is a local draft, not a message. Do not email, text, post, or otherwise transmit it automatically.
 

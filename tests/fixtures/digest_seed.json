@@ -1,0 +1,86 @@
+{
+  "demo": true,
+  "suppressed_count": 0,
+  "profile": {
+    "max_drive_minutes": 20,
+    "age_range": {"min_age": 25, "max_age": 40},
+    "body_types": ["athletic"],
+    "positions": ["versatile"],
+    "must_haves": ["kind"],
+    "host_or_travel": "host",
+    "discretion_level": "discreet",
+    "dealbreakers": ["smoke"]
+  },
+  "records": [
+    {
+      "id": "seed-1",
+      "source": "reddit",
+      "title": "34, athletic versatile, kind",
+      "url": "https://example.invalid/1",
+      "body": "Can host. Discreet.",
+      "photos": ["https://images.example.invalid/1.jpg"],
+      "age": 34,
+      "distance_miles": 0,
+      "tags": ["body_type:athletic", "position:versatile", "host", "discreet"],
+      "posted_at": "2026-11-12T22:00:00+00:00",
+      "last_seen_at": "2026-11-12T22:00:00+00:00",
+      "raw": {}
+    },
+    {
+      "id": "seed-2",
+      "source": "locanto",
+      "title": "30, athletic, kind",
+      "url": "https://example.invalid/2",
+      "body": "Friendly and kind.",
+      "photos": [],
+      "age": 30,
+      "distance_miles": 4,
+      "tags": ["body_type:athletic"],
+      "posted_at": "2026-11-12T22:00:00+00:00",
+      "last_seen_at": "2026-11-11T10:00:00+00:00",
+      "raw": {}
+    },
+    {
+      "id": "seed-3",
+      "source": "doublelist",
+      "title": "45, athletic versatile, kind",
+      "url": "https://example.invalid/3",
+      "body": "Can host. Discreet.",
+      "photos": ["https://images.example.invalid/3.jpg"],
+      "age": 45,
+      "distance_miles": 12,
+      "tags": ["body_type:athletic", "position:versatile", "host", "discreet"],
+      "posted_at": "2026-11-12T22:00:00+00:00",
+      "last_seen_at": "2026-11-09T04:00:00+00:00",
+      "raw": {}
+    },
+    {
+      "id": "seed-4",
+      "source": "squirt",
+      "title": "28, athletic versatile, kind",
+      "url": "https://example.invalid/4",
+      "body": "I smoke. Can host. Discreet.",
+      "photos": [],
+      "age": 28,
+      "distance_miles": 2.5,
+      "tags": ["body_type:athletic", "position:versatile", "host", "discreet"],
+      "posted_at": "2026-11-12T22:00:00+00:00",
+      "last_seen_at": "2026-11-12T16:00:00+00:00",
+      "raw": {}
+    },
+    {
+      "id": "seed-5",
+      "source": "reddit",
+      "title": "Details unavailable",
+      "url": "https://example.invalid/5",
+      "body": "",
+      "photos": [],
+      "age": null,
+      "distance_miles": null,
+      "tags": [],
+      "posted_at": null,
+      "last_seen_at": null,
+      "raw": {}
+    }
+  ]
+}
