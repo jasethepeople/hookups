@@ -37,6 +37,19 @@ pnp_stance: null
 # Exactly three recent openers, copied verbatim.
 recent_openers: []
 
+# Facts about you that may be used in outgoing drafts; never inferred.
+self_stats:
+  # Your age, in years.
+  age: null
+  # Your stated body type, in your own wording.
+  body_type: null
+  # Your stated role or position.
+  position: null
+  # Your stated home area, not an exact address.
+  location: null
+  # Your explicit host/travel availability.
+  host_or_travel: null
+
 # Exact Locanto city path slug; do not derive it from ZIP.
 locanto:
   # City slug used as the first path segment in Locanto search URLs.

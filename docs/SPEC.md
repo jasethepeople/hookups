@@ -64,6 +64,12 @@ Round each component and the total to the nearest integer. A configured dealbrea
 
 The dashboard is private and local-only by default; when hosted on Zo, run it as a private HTTP service. Demo rows live in a separate ignored SQLite database and never enter the live listings database. Do not expose the dashboard on a public network or publish it as a public site.
 
+## Drafts
+
+- Generate two unsent variants for each of the three highest-scored visible, non-superseded eligible listings; persist drafts idempotently.
+- Grindr variants are stats-forward and at most 10 words; Doublelist variants are 3–4 sentences containing explicit self-stats plus one specific title/body hook; Reddit variants are short comments.
+- Use only facts in `profile.self_stats`; never infer personal facts. Skip Grindr and Doublelist until self-stats are configured. Drafting never sends a message.
+
 ## Scheduler
 
 - Run Locanto every 30 minutes, Doublelist every 45 minutes, and Squirt and Reddit every 60 minutes.
