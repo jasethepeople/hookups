@@ -8,3 +8,4 @@
 - 2026-11-12 — Do not download listing images in v1; show source links instead.
 - 2026-11-12 — Limit Reddit to `r/r4r` until clarified; ingest Grindr passively through an explicitly authorized notification bridge only.
 - 2026-11-12 — V1 has no sender; any later outbound action requires explicit approval of that exact action.
+- 2026-11-12 — Keep profile preferences unset until the user explicitly supplies them; age-range filters are adult-only (minimum age 18).

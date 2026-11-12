@@ -1,0 +1,38 @@
+# User-provided profile only. Unanswered values stay null or empty; do not infer them.
+
+# Home ZIP code used as the local search center.
+home_zip: null
+
+# Maximum drive time, in minutes.
+max_drive_minutes: null
+
+# Inclusive preferred age bounds; adults only, with min_age at least 18.
+age_range:
+  # Minimum adult age.
+  min_age: null
+  # Maximum adult age.
+  max_age: null
+
+# Body types you explicitly prefer; use your own wording.
+body_types: []
+
+# Positions or roles you explicitly prefer; define the meaning in your answer if needed.
+positions: []
+
+# Non-negotiable qualities or conditions.
+must_haves: []
+
+# Exclusions; matching listings should be filtered out.
+dealbreakers: []
+
+# Whether you can host, travel, either, or have specific limits.
+host_or_travel: null
+
+# Your desired level of discretion and any concrete privacy boundaries.
+discretion_level: null
+
+# Your stance on PnP; specify what PnP means to you if needed.
+pnp_stance: null
+
+# Exactly three recent openers, copied verbatim.
+recent_openers: []
