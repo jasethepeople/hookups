@@ -51,7 +51,7 @@ Round each component and the total to the nearest integer. A configured dealbrea
 - Add a `New since last digest` count based on eligible records whose `last_seen_at` is later than the previous digest’s `Generated` timestamp. On the first render, count all eligible records with a `last_seen_at`.
 - The suppressed count includes normalization suppressions, hard-zero dealbreakers, and dedupe losers. Listings below threshold and entries beyond the top-8 cap are not counted as suppressed.
 - Keep digest files in `out/`; they contain source-derived content and follow the same 30-day retention period.
-- A digest is a local draft, not a message. Do not email, text, post, or otherwise transmit it automatically.
+- A digest is a local draft, not a message. Never transmit automatically; Telegram delivery occurs only after an authorized `/hookups` command from the configured chat.
 
 ## Dashboard pages
 
