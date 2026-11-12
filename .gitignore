@@ -5,3 +5,4 @@ logs/
 out/
 .venv/
 __pycache__/
+cache/

@@ -10,3 +10,5 @@
 - 2026-11-12 — V1 has no sender; any later outbound action requires explicit approval of that exact action.
 - 2026-11-12 — Keep profile preferences unset until the user explicitly supplies them; age-range filters are adult-only (minimum age 18).
 - 2026-11-12 — Schema v1 uses integer IDs, UTC ISO-8601 text timestamps, source-scoped unique dedupe keys, foreign-key cascades for listing-derived rows, weighted score components (40/25/20/10/5), `PRAGMA user_version`, local unsent drafts and manual contact logs; ignore SQLite database files and Python bytecode in Git.
+- 2026-11-12 — Locanto searches require an explicit `locanto.city_slug` and category-path list in `config/profile.yaml`; never derive city or category from ZIP/preferences. Missing values mean no request. Cache exact URLs for 30 minutes and never start a source poll inside the 30-minute floor.
+- 2026-11-12 — Doublelist searches require explicit `doublelist.city_slug` and category slugs; no values are inferred from ZIP. Keep its persistent Chromium profile in ignored `cache/` with owner-only permissions, cache responses by exact URL for 30 minutes, and retain the same per-source poll floor.

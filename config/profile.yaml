@@ -36,3 +36,17 @@ pnp_stance: null
 
 # Exactly three recent openers, copied verbatim.
 recent_openers: []
+
+# Exact Locanto city path slug; do not derive it from ZIP.
+locanto:
+  # City slug used as the first path segment in Locanto search URLs.
+  city_slug: null
+  # Explicit Locanto category paths, e.g. Personals/P; empty means no requests.
+  categories: []
+
+# Exact Doublelist city slug, such as the site's city path segment; do not infer from ZIP.
+doublelist:
+  # City slug used after /city/ in Doublelist search URLs.
+  city_slug: null
+  # Explicit Doublelist category slugs; empty means no search requests.
+  categories: []
