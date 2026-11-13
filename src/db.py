@@ -5,7 +5,7 @@ import sqlite3
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = PROJECT_ROOT / "db" / "schema.sql"
 DEFAULT_DB_PATH = PROJECT_ROOT / "db" / "hookups.sqlite3"
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 REBUILD_TABLES = ("scores", "contacts", "drafts", "runs", "http_cache", "listings")
 COPY_COLUMNS = {
     "listings": (
@@ -104,6 +104,47 @@ def _upgrade_scheduler_runs(connection: sqlite3.Connection, schema: str) -> None
     connection.execute(f"DROP TABLE {_quote_identifier(backup)}")
 
 
+def _upgrade_approval_tables(connection: sqlite3.Connection, schema: str) -> None:
+    backups = {"contacts": "contacts__schema6_backup", "drafts": "drafts__schema6_backup"}
+    indexes = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'index' AND tbl_name IN ('contacts', 'drafts') AND name NOT LIKE 'sqlite_%'"
+    ).fetchall()
+    for (name,) in indexes:
+        connection.execute(f"DROP INDEX IF EXISTS {_quote_identifier(name)}")
+    for table, backup in backups.items():
+        if not _table_exists(connection, table):
+            continue
+        if _table_exists(connection, backup):
+            raise RuntimeError(f"Migration backup table already exists: {backup}")
+        connection.execute(f"ALTER TABLE {_quote_identifier(table)} RENAME TO {_quote_identifier(backup)}")
+    _execute_schema(connection, schema)
+    if _table_exists(connection, backups["contacts"]):
+        columns = {row[1] for row in connection.execute(f"PRAGMA table_info({backups['contacts']})")}
+        base = ["id", "listing_id", "contacted_at", "method", "notes", "created_at"]
+        targets = base + ["status", "ts"]
+        expressions = [_quote_identifier(column) for column in base]
+        expressions.append(_quote_identifier("status") if "status" in columns else "'sent'")
+        expressions.append(_quote_identifier("ts") if "ts" in columns else _quote_identifier("contacted_at"))
+        connection.execute(
+            f"INSERT INTO contacts ({', '.join(_quote_identifier(column) for column in targets)}) "
+            f"SELECT {', '.join(expressions)} FROM {_quote_identifier(backups['contacts'])}"
+        )
+    if _table_exists(connection, backups["drafts"]):
+        columns = {row[1] for row in connection.execute(f"PRAGMA table_info({backups['drafts']})")}
+        base = ["id", "listing_id", "body", "created_at", "updated_at"]
+        targets = ["id", "listing_id", "body", "status", "created_at", "updated_at"]
+        expressions = [_quote_identifier(column) for column in base[:3]]
+        expressions.append(_quote_identifier("status") if "status" in columns else "'draft'")
+        expressions.extend(_quote_identifier(column) for column in base[3:])
+        connection.execute(
+            f"INSERT INTO drafts ({', '.join(_quote_identifier(column) for column in targets)}) "
+            f"SELECT {', '.join(expressions)} FROM {_quote_identifier(backups['drafts'])}"
+        )
+    for backup in backups.values():
+        if _table_exists(connection, backup):
+            connection.execute(f"DROP TABLE {_quote_identifier(backup)}")
+
+
 def migrate(db_path: str | Path | None = None) -> None:
     path = str(DEFAULT_DB_PATH if db_path is None else db_path)
     if path != ":memory:":
@@ -119,18 +160,23 @@ def migrate(db_path: str | Path | None = None) -> None:
             )
         legacy_upgrade = current_version in (1, 2)
         runs_upgrade = current_version in (3, 4)
+        approval_upgrade = current_version in (3, 4, 5, 6)
         if current_version == 0:
             legacy_upgrade = any(_table_exists(connection, table) for table in REBUILD_TABLES)
-        if legacy_upgrade:
+        if legacy_upgrade or runs_upgrade or approval_upgrade:
             connection.execute("PRAGMA foreign_keys = OFF")
         connection.execute("BEGIN IMMEDIATE")
         try:
             if legacy_upgrade:
                 _upgrade_source_checks(connection, schema)
-            elif runs_upgrade:
-                _upgrade_scheduler_runs(connection, schema)
+                connection.execute("UPDATE contacts SET ts = contacted_at WHERE ts = '1970-01-01T00:00:00+00:00'")
             else:
-                _execute_schema(connection, schema)
+                if runs_upgrade:
+                    _upgrade_scheduler_runs(connection, schema)
+                if approval_upgrade:
+                    _upgrade_approval_tables(connection, schema)
+                if not runs_upgrade and not approval_upgrade:
+                    _execute_schema(connection, schema)
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             violations = connection.execute("PRAGMA foreign_key_check").fetchall()
             if violations:
@@ -140,7 +186,7 @@ def migrate(db_path: str | Path | None = None) -> None:
             if connection.in_transaction:
                 connection.rollback()
             raise
-        if legacy_upgrade:
+        if legacy_upgrade or runs_upgrade or approval_upgrade:
             connection.execute("PRAGMA foreign_keys = ON")
     finally:
         connection.close()

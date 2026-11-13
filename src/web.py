@@ -17,6 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from jinja2 import Environment, select_autoescape
 
 from src.db import DEFAULT_DB_PATH, migrate
+from src.draft import approve_draft as approve_draft_record, edit_draft as edit_draft_record, generate_drafts, skip_draft as skip_draft_record
 from src.dedupe import dedupe_records
 from src.normalize import normalize_record
 from src.score import load_profile, model_url_from_env, score_records
@@ -51,6 +52,8 @@ PAGE = TEMPLATE.from_string("""<!doctype html>
 <style>
 :root{color-scheme:dark;--bg:#0b1016;--panel:#121b25;--panel2:#172330;--line:#263744;--ink:#eef5f4;--muted:#91a4ad;--accent:#a8efc2;--accent2:#6fd4bd;--warning:#ffc875;--danger:#ff958c}
 *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 16% -10%,#1b3540 0,transparent 43%),var(--bg);color:var(--ink);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}.wrap{max-width:1380px;margin:0 auto;padding:36px 28px 64px}.topline{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:38px}.brand{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);font-weight:750}.brand b{color:var(--accent);font-size:15px;letter-spacing:.12em}.demo{border:1px solid #78633c;background:#241e15;color:#ffd492;padding:6px 11px;border-radius:999px;font-size:12px;letter-spacing:.04em}.hero{display:flex;justify-content:space-between;align-items:end;gap:24px;margin-bottom:26px}.eyebrow{color:var(--accent2);font-weight:700;letter-spacing:.15em;text-transform:uppercase;font-size:11px}.hero h1{font-size:clamp(32px,5vw,54px);line-height:1.02;letter-spacing:-.045em;margin:8px 0 10px}.hero p{margin:0;color:var(--muted);max-width:620px}.count{min-width:145px;text-align:right;color:var(--muted);font-size:13px}.count strong{display:block;color:var(--ink);font-size:28px;line-height:1.1}.filters{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding:16px;background:rgba(18,27,37,.94);border:1px solid var(--line);border-radius:16px;margin:26px 0}.filters label{display:grid;gap:5px;color:var(--muted);font-size:12px}.filters select,.filters input{height:40px;min-width:160px;padding:0 11px;border:1px solid #344856;border-radius:9px;background:#0d151c;color:var(--ink);font:inherit}.filters input{min-width:110px}.button,.filters button{height:40px;border:1px solid #446258;border-radius:9px;padding:0 14px;color:#06110b;background:var(--accent);font-weight:750;cursor:pointer}.filters .reset{height:40px;display:inline-flex;align-items:center;padding:0 12px;color:var(--muted);border:1px solid var(--line);border-radius:9px}.results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.card{min-width:0;background:linear-gradient(155deg,rgba(23,35,48,.97),rgba(17,25,34,.98));border:1px solid var(--line);border-radius:17px;padding:19px 20px 17px;box-shadow:0 12px 36px #0002}.card-head{display:flex;justify-content:space-between;gap:14px;align-items:start}.source{display:inline-flex;align-items:center;gap:7px;color:var(--accent2);font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}.source:before{content:"";width:7px;height:7px;border-radius:50%;background:var(--accent2);box-shadow:0 0 12px #6fd4bd80}.card h2{font-size:19px;line-height:1.25;letter-spacing:-.02em;margin:7px 0 5px}.score{flex:none;text-align:right;color:var(--accent);font-size:26px;font-weight:800;line-height:1}.score small{display:block;color:var(--muted);font-size:10px;letter-spacing:.12em;text-transform:uppercase;margin-top:4px}.meta{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin:12px 0}.pill{padding:4px 8px;background:#0c151c;border:1px solid #273946;border-radius:999px}.body{color:#c5d2d5;white-space:pre-wrap;overflow-wrap:anywhere;margin:13px 0 14px;font-size:14px}.why{padding:11px 12px;border-left:2px solid var(--accent2);background:#0c151c;color:#aebdc2;border-radius:0 9px 9px 0;font-size:12px}.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.actions button{height:34px;padding:0 11px;border-radius:8px;background:#17242c;color:var(--ink);border:1px solid #344751;font:inherit;font-size:12px;font-weight:650;cursor:pointer}.actions button:hover:not(:disabled){border-color:var(--accent2);color:var(--accent)}.actions button:disabled{color:#69777c;cursor:not-allowed;opacity:.7}.status{color:var(--warning);font-size:11px;margin-left:auto;align-self:center}.empty{grid-column:1/-1;padding:46px 24px;text-align:center;border:1px dashed #344956;border-radius:16px;color:var(--muted)}.footer{margin-top:34px;color:#71848b;font-size:11px;text-align:center}.error{color:var(--danger)}@media(max-width:840px){.results{grid-template-columns:1fr}.hero{align-items:start;flex-direction:column}.count{text-align:left}.wrap{padding:24px 16px 48px}}
+</style><style>
+.drafts{margin:16px 0;padding:12px;background:#0c151c;border:1px solid #344751;border-radius:12px}.drafts summary{cursor:pointer;color:var(--accent);font-weight:700}.draft-item{padding-top:12px}.draft-item label{display:block;color:var(--muted);font-size:11px;margin-bottom:5px}.draft-item textarea{width:100%;min-height:82px;padding:10px;border:1px solid #344856;border-radius:9px;background:#0a1218;color:var(--ink);font:inherit;resize:vertical}.draft-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}.draft-actions button{height:32px;padding:0 10px;border-radius:8px;background:#17242c;color:var(--ink);border:1px solid #344751;font:inherit;font-size:12px;font-weight:650;cursor:pointer}.draft-actions button:first-child{background:var(--accent);color:#06110b;border-color:var(--accent)}.draft-actions button:disabled{opacity:.6;cursor:wait}
 </style>
 </head>
 <body>
@@ -68,6 +71,7 @@ PAGE = TEMPLATE.from_string("""<!doctype html>
 <div class="card-head"><div><div class="source">{{ item.source }}</div><h2>{{ item.title }}</h2></div><div class="score">{{ item.score }}<small>score / 100</small></div></div>
 <div class="meta"><span class="pill">{% if item.age is not none %}Age {{ item.age }}{% else %}Age not listed{% endif %}</span><span class="pill">{% if item.distance_miles is not none %}{{ "%.1f"|format(item.distance_miles) }} mi{% else %}Distance not listed{% endif %}</span><span class="pill">{{ item.location or "Location not listed" }}</span><span class="pill">Seen {{ item.last_seen }}</span><span class="pill">{{ item.photo_count }} photo link{% if item.photo_count != 1 %}s{% endif %}</span></div>
 <p class="body">{{ item.body or "No description provided." }}</p><div class="why">{{ item.why }}</div>
+{% if item.drafts %}<details class="drafts"><summary>Unsent drafts ({{ item.drafts|length }})</summary>{% for draft in item.drafts %}<div class="draft-item"><label for="draft-{{ draft.id }}">Variant {{ loop.index }}</label><textarea id="draft-{{ draft.id }}">{{ draft.body }}</textarea><div class="draft-actions"><button type="button" data-action="approve-draft" data-id="{{ draft.id }}">Approve · copy</button><button type="button" data-action="edit-draft" data-id="{{ draft.id }}">Save edit</button><button type="button" data-action="skip-draft" data-id="{{ draft.id }}">Skip</button><span class="status" data-draft-status="{{ draft.id }}"></span></div></div>{% endfor %}</details>{% endif %}
 <div class="actions"><a class="button" href="{{ item.url }}" target="_blank" rel="noopener noreferrer">Open source ↗</a><button type="button" data-action="seen" data-id="{{ item.listing_id }}">Seen</button><button type="button" data-action="hide" data-id="{{ item.listing_id }}">Hide</button><button type="button" data-action="block-domain" data-id="{{ item.listing_id }}">Block domain</button><button type="button" data-action="copy-opener" data-opener="{{ opener_for_loop[loop.index0] }}" {% if not opener_for_loop[loop.index0] %}disabled title="Add one of your own recent openers to the profile to enable"{% endif %}>Copy opener</button><span class="status">{{ item.review_status }}</span></div>
 </article>
 {% else %}<div class="empty">No listings match these filters.</div>{% endfor %}
@@ -78,15 +82,37 @@ PAGE = TEMPLATE.from_string("""<!doctype html>
 const actionToken = document.querySelector('meta[name="action-token"]').content;
 document.querySelectorAll('button[data-action]').forEach(button => button.addEventListener('click', async () => {
   if (button.disabled) return;
-  if (button.dataset.action === 'copy-opener') {
+  const action = button.dataset.action;
+  if (action === 'copy-opener') {
     try { await navigator.clipboard.writeText(button.dataset.opener); button.textContent = 'Copied'; }
     catch { button.textContent = 'Clipboard unavailable'; }
     return;
   }
+  const id = button.dataset.id;
+  const status = document.querySelector(`[data-draft-status="${id}"]`);
+  const textarea = document.getElementById(`draft-${id}`);
+  if (action === 'approve-draft') {
+    try { await navigator.clipboard.writeText(textarea.value); }
+    catch { if (status) status.textContent = 'Clipboard unavailable; not approved'; return; }
+  }
   button.disabled = true;
-  const response = await fetch(`/api/listings/${button.dataset.id}/${button.dataset.action}`, {method: 'POST', headers: {'X-Action-Token': actionToken, 'Accept': 'application/json'}});
-  if (response.ok) location.reload();
-  else { button.disabled = false; button.textContent = 'Try again'; }
+  let path = `/api/listings/${id}/${action}`;
+  const headers = {'X-Action-Token': actionToken, 'Accept': 'application/json'};
+  const options = {method: 'POST', headers};
+  if (action === 'approve-draft' || action === 'skip-draft') path = `/api/drafts/${id}/${action.replace('-draft', '')}`;
+  if (action === 'edit-draft') {
+    path = `/api/drafts/${id}/edit`;
+    headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify({body: textarea.value});
+  }
+  try {
+    const response = await fetch(path, options);
+    if (response.ok) location.reload();
+    else { button.disabled = false; if (status) status.textContent = 'Could not save; reload and retry'; }
+  } catch {
+    button.disabled = false;
+    if (status) status.textContent = 'Connection failed';
+  }
 }));
 </script>
 </body>
@@ -168,6 +194,7 @@ def seed_demo_data(db_path: str | Path = DB_PATH, now: datetime | None = None) -
                 thumb_url = f"https://{item['source']}.demo.invalid/photo-{index:02d}.jpg" if item["photo"] else None
                 connection.execute("UPDATE listings SET thumb_url = ? WHERE source_id = ?", (thumb_url, f"demo-{index:02d}"))
             connection.commit()
+            generate_drafts(db_path, profile=DEMO_PROFILE, limit=3, now=current)
             return existing
         if existing:
             ids = [row[0] for row in connection.execute("SELECT id FROM listings WHERE source_id LIKE 'demo-%'")]
@@ -206,6 +233,7 @@ def seed_demo_data(db_path: str | Path = DB_PATH, now: datetime | None = None) -
         )
         connection.commit()
         score_records(normalized, DEMO_PROFILE, current, db_path, cache=True, model_url="")
+        generate_drafts(db_path, profile=DEMO_PROFILE, limit=3, now=current)
         return len(normalized)
     except Exception:
         connection.rollback()
@@ -288,6 +316,25 @@ def feed_records(db_path: str | Path = DB_PATH, source: str | None = None, min_s
     return output
 
 
+def drafts_for_listings(db_path: str | Path, listings: list[dict]) -> dict[int, list[dict]]:
+    listing_ids = [int(item["listing_id"]) for item in listings]
+    if not listing_ids:
+        return {}
+    placeholders = ",".join("?" for _ in listing_ids)
+    migrate(db_path)
+    with sqlite3.connect(str(db_path), timeout=30) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            f"SELECT id, listing_id, body FROM drafts WHERE status = 'draft' AND listing_id IN ({placeholders}) ORDER BY listing_id, id",
+            listing_ids,
+        ).fetchall()
+    result: dict[int, list[dict]] = {}
+    for row in rows:
+        result.setdefault(int(row["listing_id"]), []).append(dict(row))
+    return result
+
+
+
 def _new_action_token() -> str:
     token = secrets.token_urlsafe(32)
     cutoff = _now() + timedelta(hours=1)
@@ -316,7 +363,10 @@ def index(
     sources = sorted({item["source"] for item in feed_records(DB_PATH, min_score=0)})
     selected = source if source in sources else ""
     listings = feed_records(DB_PATH, source=selected or None, min_score=min_score)
-    openers = load_profile().get("recent_openers", [])
+    drafts = drafts_for_listings(DB_PATH, listings)
+    for item in listings:
+        item["drafts"] = drafts.get(int(item["listing_id"]), [])
+    openers = [] if DEMO_MODE else load_profile().get("recent_openers", [])
     if not isinstance(openers, list):
         openers = []
     openers = [str(item).strip() for item in openers if isinstance(item, str) and item.strip()]
@@ -385,6 +435,50 @@ def block_domain(listing_id: int, x_action_token: str | None = Header(None)) -> 
     finally:
         connection.close()
     return JSONResponse({"ok": True, "blocked_domain": domain, "hidden": len(to_hide)})
+
+
+@app.post("/api/drafts/{draft_id}/approve")
+def approve_draft_route(draft_id: int, x_action_token: str | None = Header(None)) -> JSONResponse:
+    _require_action_token(x_action_token)
+    try:
+        approve_draft_record(draft_id, DB_PATH, method="clipboard")
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from None
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from None
+    return JSONResponse({"ok": True, "status": "approved"})
+
+
+@app.post("/api/drafts/{draft_id}/edit")
+async def edit_draft_route(
+    draft_id: int,
+    request: Request,
+    x_action_token: str | None = Header(None),
+) -> JSONResponse:
+    _require_action_token(x_action_token)
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Expected a JSON body with a draft body") from None
+    if not isinstance(payload, dict) or not isinstance(payload.get("body"), str):
+        raise HTTPException(status_code=400, detail="Expected a JSON body with a draft body")
+    try:
+        edit_draft_record(draft_id, payload["body"], DB_PATH)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from None
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from None
+    return JSONResponse({"ok": True, "status": "edited"})
+
+
+@app.post("/api/drafts/{draft_id}/skip")
+def skip_draft_route(draft_id: int, x_action_token: str | None = Header(None)) -> JSONResponse:
+    _require_action_token(x_action_token)
+    try:
+        skip_draft_record(draft_id, DB_PATH)
+    except LookupError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from None
+    return JSONResponse({"ok": True, "status": "skipped"})
 
 
 def seed_demo_data_cli() -> int:

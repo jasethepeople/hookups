@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 
 from src.db import DEFAULT_DB_PATH, migrate
 from src.dedupe import dedupe_records
@@ -216,12 +216,12 @@ def generate_drafts(
             variants = draft_variants(record, self_stats)
             listing_id = int(record["listing_id"])
             if not dry:
-                for body in variants:
-                    exists = connection.execute(
-                        "SELECT 1 FROM drafts WHERE listing_id = ? AND body = ? AND status = 'draft' LIMIT 1",
-                        (listing_id, body),
-                    ).fetchone()
-                    if not exists:
+                exists = connection.execute(
+                    "SELECT 1 FROM drafts WHERE listing_id = ? LIMIT 1",
+                    (listing_id,),
+                ).fetchone()
+                if not exists:
+                    for body in variants:
                         connection.execute(
                             "INSERT INTO drafts (listing_id, body, status, created_at, updated_at) VALUES (?, ?, 'draft', ?, ?)",
                             (listing_id, body, timestamp, timestamp),
@@ -238,6 +238,170 @@ def generate_drafts(
         if not dry:
             connection.commit()
         return result
+    except Exception:
+        if connection.in_transaction:
+            connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def _canonical_contact_url(value: str) -> str:
+    parts = urlsplit(value.strip())
+    scheme = parts.scheme.casefold()
+    host = (parts.hostname or "").casefold()
+    if scheme not in {"http", "https"} or not host or parts.username or parts.password:
+        raise ValueError("A full HTTP(S) listing URL is required")
+    try:
+        port = parts.port
+    except ValueError:
+        raise ValueError("Listing URL has an invalid port") from None
+    netloc = host if port is None or (scheme == "https" and port == 443) or (scheme == "http" and port == 80) else f"{host}:{port}"
+    return urlunsplit((scheme, netloc, parts.path.rstrip("/") or "/", parts.query, ""))
+
+
+def approve_draft(
+    draft_id: int,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    now: datetime | None = None,
+    method: str = "clipboard",
+) -> str:
+    if method not in {"clipboard", "telegram-approval"}:
+        raise ValueError("unsupported approval method")
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    timestamp = current.astimezone(timezone.utc).isoformat(timespec="seconds")
+    migrate(db_path)
+    connection = sqlite3.connect(str(db_path), timeout=30)
+    try:
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("BEGIN IMMEDIATE")
+        row = connection.execute(
+            "SELECT drafts.listing_id, drafts.body, drafts.status, listings.review_status "
+            "FROM drafts JOIN listings ON listings.id = drafts.listing_id WHERE drafts.id = ?",
+            (draft_id,),
+        ).fetchone()
+        if row is None:
+            raise LookupError("draft not found")
+        listing_id, body, draft_status, review_status = row
+        if draft_status != "draft":
+            raise ValueError("draft is no longer awaiting approval")
+        if review_status in {"hidden", "contacted"}:
+            raise ValueError("listing is hidden or already contacted")
+        connection.execute(
+            "UPDATE drafts SET status = 'approved', updated_at = ? WHERE id = ? AND status = 'draft'",
+            (timestamp, draft_id),
+        )
+        connection.execute(
+            "INSERT INTO contacts (listing_id, contacted_at, method, notes, created_at, status, ts) "
+            "VALUES (?, ?, ?, '', ?, 'sent', ?)",
+            (listing_id, timestamp, method, timestamp, timestamp),
+        )
+        connection.execute(
+            "UPDATE listings SET review_status = 'contacted' WHERE id = ?",
+            (listing_id,),
+        )
+        connection.commit()
+        return str(body)
+    except Exception:
+        if connection.in_transaction:
+            connection.rollback()
+        raise
+    finally:
+        connection.close()
+
+
+def edit_draft(
+    draft_id: int,
+    body: str,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    now: datetime | None = None,
+) -> None:
+    text = _clean_text(body, 4000)
+    if not text or len(text) > 4000:
+        raise ValueError("edited draft must contain 1–4000 characters")
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    timestamp = current.astimezone(timezone.utc).isoformat(timespec="seconds")
+    migrate(db_path)
+    with sqlite3.connect(str(db_path), timeout=30) as connection:
+        cursor = connection.execute(
+            "UPDATE drafts SET body = ?, updated_at = ? WHERE id = ? AND status = 'draft'",
+            (text, timestamp, draft_id),
+        )
+        if cursor.rowcount != 1:
+            raise LookupError("active draft not found")
+
+
+def skip_draft(
+    draft_id: int,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    now: datetime | None = None,
+) -> None:
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    timestamp = current.astimezone(timezone.utc).isoformat(timespec="seconds")
+    migrate(db_path)
+    with sqlite3.connect(str(db_path), timeout=30) as connection:
+        cursor = connection.execute(
+            "UPDATE drafts SET status = 'discarded', updated_at = ? WHERE id = ? AND status = 'draft'",
+            (timestamp, draft_id),
+        )
+        if cursor.rowcount != 1:
+            raise LookupError("active draft not found")
+
+
+def log_contact(
+    url: str,
+    status: str,
+    db_path: str | Path = DEFAULT_DB_PATH,
+    now: datetime | None = None,
+) -> int:
+    if status not in {"replied", "ghosted", "met"}:
+        raise ValueError("status must be replied, ghosted, or met")
+    target = _canonical_contact_url(url)
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    timestamp = current.astimezone(timezone.utc).isoformat(timespec="seconds")
+    migrate(db_path)
+    connection = sqlite3.connect(str(db_path), timeout=30)
+    try:
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("BEGIN IMMEDIATE")
+        matches = connection.execute(
+            "SELECT id, canonical_url FROM listings ORDER BY last_seen_at DESC, id DESC"
+        ).fetchall()
+        listing_id = next(
+            (int(row[0]) for row in matches if _canonical_contact_url(str(row[1])) == target),
+            None,
+        )
+        if listing_id is None:
+            raise LookupError("listing URL not found")
+        contact = connection.execute(
+            "SELECT id FROM contacts WHERE listing_id = ? ORDER BY ts DESC, id DESC LIMIT 1",
+            (listing_id,),
+        ).fetchone()
+        if contact:
+            connection.execute(
+                "UPDATE contacts SET status = ?, ts = ? WHERE id = ?",
+                (status, timestamp, contact[0]),
+            )
+        else:
+            connection.execute(
+                "INSERT INTO contacts (listing_id, contacted_at, method, notes, created_at, status, ts) "
+                "VALUES (?, ?, 'manual-log', '', ?, ?, ?)",
+                (listing_id, timestamp, timestamp, status, timestamp),
+            )
+        connection.execute(
+            "UPDATE listings SET review_status = 'contacted' WHERE id = ?",
+            (listing_id,),
+        )
+        connection.commit()
+        return listing_id
     except Exception:
         if connection.in_transaction:
             connection.rollback()

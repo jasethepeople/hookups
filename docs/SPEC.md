@@ -68,7 +68,7 @@ The dashboard is private and local-only by default; when hosted on Zo, run it as
 
 - Generate two unsent variants for each of the three highest-scored visible, non-superseded eligible listings; persist drafts idempotently.
 - Grindr variants are stats-forward and at most 10 words; Doublelist variants are 3–4 sentences containing explicit self-stats plus one specific title/body hook; Reddit variants are short comments.
-- Use only facts in `profile.self_stats`; never infer personal facts. Skip Grindr and Doublelist until self-stats are configured. Drafting never sends a message.
+- Use only facts in `profile.self_stats`; never infer personal facts. Skip Grindr and Doublelist until self-stats are configured. Drafting never sends a message.- On the dashboard, approval copies the exact variant to the clipboard and records `contacts.status='sent'` with its UTC `ts`; clipboard failure prevents approval. Editing and skipping update the local draft only. The private Telegram bot accepts `/log <url> <replied|ghosted|met>` for a known listing; it never contacts the listing author.
 
 ## Scheduler
 

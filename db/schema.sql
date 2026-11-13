@@ -39,14 +39,16 @@ CREATE TABLE IF NOT EXISTS contacts (
     contacted_at TEXT NOT NULL,
     method TEXT NOT NULL DEFAULT 'manual',
     notes TEXT NOT NULL DEFAULT '',
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('sent', 'replied', 'ghosted', 'met')),
+    ts TEXT NOT NULL DEFAULT '1970-01-01T00:00:00+00:00'
 );
 
 CREATE TABLE IF NOT EXISTS drafts (
     id INTEGER PRIMARY KEY,
     listing_id INTEGER NOT NULL REFERENCES listings (id) ON DELETE CASCADE,
     body TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'discarded')),
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'approved', 'discarded')),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
@@ -81,6 +83,7 @@ CREATE INDEX IF NOT EXISTS idx_listings_dedupe_key ON listings (dedupe_key);
 CREATE INDEX IF NOT EXISTS idx_listings_first_seen_at ON listings (first_seen_at);
 CREATE INDEX IF NOT EXISTS idx_scores_listing_scored_at ON scores (listing_id, scored_at);
 CREATE INDEX IF NOT EXISTS idx_contacts_listing_contacted_at ON contacts (listing_id, contacted_at);
+CREATE INDEX IF NOT EXISTS idx_contacts_status_ts ON contacts (status, ts);
 CREATE INDEX IF NOT EXISTS idx_drafts_listing_updated_at ON drafts (listing_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_runs_source_started_at ON runs (source, started_at);
 CREATE INDEX IF NOT EXISTS idx_http_cache_source_fetched_at ON http_cache (source, fetched_at);

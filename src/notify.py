@@ -21,6 +21,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.db import DEFAULT_DB_PATH, migrate
 from src.dedupe import dedupe_records
+from src.draft import log_contact
 from src.digest import DEFAULT_LIMIT, DEFAULT_THRESHOLD, DEFAULT_OUTPUT, render_digest
 from src.normalize import normalize_record
 from src.score import load_profile, score_records
@@ -32,6 +33,8 @@ LOCK_PATH = PROJECT_ROOT / "cache" / "telegram-notify.lock"
 CHUNK_LIMIT = 3800
 POLL_TIMEOUT = 20
 COMMAND_PATTERN = re.compile(r"^/hookups(?:@[A-Za-z0-9_]+)?(?:\s|$)", re.IGNORECASE)
+LOG_PATTERN = re.compile(r"^/log(?:@[A-Za-z0-9_]+)?\s+(\S+)\s+(replied|ghosted|met)\s*$", re.IGNORECASE)
+LOG_COMMAND_PATTERN = re.compile(r"^/log(?:@[A-Za-z0-9_]+)?(?:\s|$)", re.IGNORECASE)
 
 
 class TelegramAPIError(RuntimeError):
@@ -242,20 +245,25 @@ def send_digest(token: str, chat_id: str, text: str) -> int:
     return len(chunks)
 
 
-def is_hookups_command(update: dict[str, Any], chat_id: str) -> bool:
+def _private_message_text(update: dict[str, Any], chat_id: str) -> str | None:
     message = update.get("message")
     if not isinstance(message, dict):
-        return False
+        return None
     chat = message.get("chat")
     if not isinstance(chat, dict):
-        return False
+        return None
     if chat.get("type") != "private" or str(chat.get("id", "")) != chat_id:
-        return False
+        return None
     sender = message.get("from")
     if isinstance(sender, dict) and sender.get("is_bot") is True:
-        return False
+        return None
     text = message.get("text")
-    return isinstance(text, str) and COMMAND_PATTERN.match(text.strip()) is not None
+    return text.strip() if isinstance(text, str) else None
+
+
+def is_hookups_command(update: dict[str, Any], chat_id: str) -> bool:
+    text = _private_message_text(update, chat_id)
+    return text is not None and COMMAND_PATTERN.match(text) is not None
 
 
 def handle_update(
@@ -267,11 +275,28 @@ def handle_update(
     model_url: str = "",
     renderer: Callable[..., str] = render_live_digest,
     sender: Callable[[str, str, str], int] = send_digest,
+    contact_logger: Callable[..., int] = log_contact,
 ) -> bool:
-    if not is_hookups_command(update, chat_id):
+    message_text = _private_message_text(update, chat_id)
+    if message_text is None:
         return False
-    text = renderer(db_path=db_path, output_path=output_path, model_url=model_url, write=True)
-    sender(token, chat_id, text)
+    if COMMAND_PATTERN.match(message_text):
+        text = renderer(db_path=db_path, output_path=output_path, model_url=model_url, write=True)
+        sender(token, chat_id, text)
+        return True
+    if not LOG_COMMAND_PATTERN.match(message_text):
+        return False
+    match = LOG_PATTERN.match(message_text)
+    if not match:
+        sender(token, chat_id, "Usage: /log <url> <replied|ghosted|met>")
+        return True
+    url, status = match.groups()
+    try:
+        listing_id = contact_logger(url, status.casefold(), db_path)
+    except (LookupError, ValueError) as error:
+        sender(token, chat_id, f"Could not log the outcome: {error}")
+        return True
+    sender(token, chat_id, f"Logged {status.casefold()} for listing {listing_id}.")
     return True
 
 
