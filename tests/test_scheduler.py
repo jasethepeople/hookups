@@ -17,12 +17,14 @@ def test_scheduler_registers_all_requested_jobs(tmp_path):
         "digest-morning",
         "digest-evening",
         "purge-03-local",
+        "backup-0230-local",
     }
     assert "±20%" in str(jobs["source-locanto"].trigger)
     assert "America/Denver" in str(jobs["digest-morning"].trigger)
     assert "08:00" in str(jobs["digest-morning"].trigger)
     assert "18:00" in str(jobs["digest-evening"].trigger)
     assert "03:00" in str(jobs["purge-03-local"].trigger)
+    assert "02:30" in str(jobs["backup-0230-local"].trigger)
 
 
 def test_interval_jitter_is_symmetric(monkeypatch):
@@ -85,10 +87,11 @@ def test_source_job_uses_runner_and_logs_registration(tmp_path):
     status = scheduler_module.run_source_job("locanto", database, now, runner)
     assert status == "succeeded"
     assert len(calls) == 1
-    assert calls[0][0][-1] == "src/sources/locanto.py"
+    assert calls[0][0][2] == "src/sources/locanto.py"
+    assert calls[0][0][-2:] == ["--db", str(database)]
     connection = sqlite3.connect(database)
     row = connection.execute(
         "SELECT source, status, error_summary FROM runs WHERE source = 'scheduler'"
     ).fetchone()
     connection.close()
-    assert row == ("scheduler", "succeeded", "job=source:locanto; collector=complete")
+    assert row == ("scheduler", "succeeded", "job=source:locanto; collector=complete; poll_row=synthetic-success")

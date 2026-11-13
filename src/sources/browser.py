@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from playwright.sync_api import Error as PlaywrightError
+from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
 
@@ -168,6 +170,30 @@ def _fetch_visible(url: str, profile: Path, seconds: float, proxy_url: str | Non
     return last_result
 
 
+def goto_with_retries(page, url: str, deadline: float, wait_until: str = "domcontentloaded"):
+    response = None
+    last_error = None
+    for attempt in range(4):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        try:
+            response = page.goto(url, wait_until=wait_until, timeout=max(1000, min(30000, int(remaining * 1000))))
+            if response is None or response.status not in {408, 425, 429, 500, 502, 503, 504} or attempt == 3:
+                return response
+        except PlaywrightError as error:
+            last_error = error
+            if attempt == 3:
+                raise
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        page.wait_for_timeout(int(min(2**attempt, remaining) * 1000))
+    if last_error is not None:
+        raise last_error
+    return response
+
+
 def _visit(context, url: str, deadline: float, proxy_used: bool) -> dict:
     page = context.new_page()
     status = 0
@@ -175,7 +201,7 @@ def _visit(context, url: str, deadline: float, proxy_used: bool) -> dict:
     final_url = url
     try:
         remaining = max(1.0, deadline - time.monotonic())
-        response = page.goto(url, wait_until="domcontentloaded", timeout=max(1000, min(30000, int(remaining * 1000))))
+        response = goto_with_retries(page, url, deadline)
         if response is not None:
             status = response.status
             headers = _safe_headers(response.headers)

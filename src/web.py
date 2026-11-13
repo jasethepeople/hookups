@@ -25,6 +25,7 @@ from src.score import load_profile, model_url_from_env, score_records
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = Path(os.environ.get("HOOKUPS_DB_PATH", str(DEFAULT_DB_PATH)))
+STATUS_DB_PATH = Path(os.environ.get("HOOKUPS_STATUS_DB_PATH", str(DEFAULT_DB_PATH)))
 DEMO_MODE = os.environ.get("HOOKUPS_DEMO", "0").strip() == "1"
 CSRF_TOKENS: dict[str, datetime] = {}
 CSRF_LOCK = threading.Lock()
@@ -386,6 +387,13 @@ def index(
 @app.get("/healthz")
 def healthz() -> JSONResponse:
     return JSONResponse({"ok": True, "demo": DEMO_MODE})
+
+
+@app.get("/status")
+def status() -> JSONResponse:
+    from src.scheduler import source_health
+
+    return JSONResponse(source_health(STATUS_DB_PATH))
 
 
 def _update_review_status(listing_id: int, status: str) -> None:

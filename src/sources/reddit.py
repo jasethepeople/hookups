@@ -25,6 +25,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.db import DEFAULT_DB_PATH, migrate
 from src.sources.browser import fetch_with_browser, is_challenge
+from src.sources.retry import RETRYABLE_STATUS_CODES, with_retries
 
 GAPS_PATH = PROJECT_ROOT / "docs" / "GAPS.md"
 PROFILE_PATH = PROJECT_ROOT / "config" / "profile.yaml"
@@ -350,7 +351,11 @@ def collect(
                     break
                 subreddit = url_subreddit[url]
                 try:
-                    response = active_client.get(url)
+                    response = with_retries(
+                        lambda: active_client.get(url),
+                        should_retry=lambda item: item.status_code in RETRYABLE_STATUS_CODES,
+                        retry_exceptions=(httpx.RequestError,),
+                    )
                     headers = _response_headers(response.headers)
                     status = response.status_code
                     final_url = str(response.url)

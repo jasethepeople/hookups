@@ -26,6 +26,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.db import DEFAULT_DB_PATH, migrate
+from src.sources.browser import goto_with_retries
 
 SOURCE = "doublelist"
 BASE_URL = "https://doublelist.com"
@@ -339,7 +340,7 @@ def _navigate(page, url: str, deadline: float) -> dict:
     response = None
     error = None
     try:
-        response = page.goto(url, wait_until="domcontentloaded", timeout=min(NAVIGATION_TIMEOUT_MS, remaining_ms))
+        response = goto_with_retries(page, url, deadline)
         if time.monotonic() < deadline:
             page.wait_for_timeout(min(1000, max(0, int((deadline - time.monotonic()) * 1000))))
     except PlaywrightTimeoutError:

@@ -223,18 +223,19 @@ def _telegram_call(token: str, method: str, payload: dict[str, Any]) -> Any:
 
 
 def _telegram_call_with_retry(token: str, method: str, payload: dict[str, Any]) -> Any:
-    for attempt in range(3):
+    retries = 3
+    for attempt in range(retries + 1):
         try:
             return _telegram_call(token, method, payload)
         except TelegramAPIError as error:
-            if attempt == 2:
+            if attempt == retries:
                 raise
             delay = error.retry_after if error.retry_after is not None else 2**attempt
             time.sleep(min(max(1, delay), 60))
     raise TelegramAPIError()
 
 
-def send_digest(token: str, chat_id: str, text: str) -> int:
+def send_message(token: str, chat_id: str, text: str) -> int:
     chunks = chunk_text(text)
     for chunk in chunks:
         _telegram_call_with_retry(
@@ -243,6 +244,10 @@ def send_digest(token: str, chat_id: str, text: str) -> int:
             {"chat_id": chat_id, "text": chunk, "disable_web_page_preview": True},
         )
     return len(chunks)
+
+
+def send_digest(token: str, chat_id: str, text: str) -> int:
+    return send_message(token, chat_id, text)
 
 
 def _private_message_text(update: dict[str, Any], chat_id: str) -> str | None:

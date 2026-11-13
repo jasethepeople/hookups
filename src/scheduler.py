@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import random
 import sqlite3
+import tempfile
 import subprocess
 import sys
 import time
@@ -22,13 +24,18 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.db import DEFAULT_DB_PATH, migrate
 from src.digest import DEFAULT_OUTPUT
-from src.notify import read_settings, render_live_digest
+from src.notify import read_settings, render_live_digest, send_digest
 
 LOCAL_TIMEZONE = "America/Denver"
 SOURCE_FLOOR_SECONDS = 30 * 60
 SOURCE_TIMEOUT_SECONDS = 10 * 60
 JITTER_FRACTION = 0.20
 CRON_JITTER_SECONDS = 12 * 60
+CONSECUTIVE_FAILURE_LIMIT = 3
+CIRCUIT_COOLDOWN_SECONDS = 60 * 60
+ERROR_WINDOW_DAYS = 30
+BACKUP_KEEP = 7
+BACKUP_DIR = Path.home() / "backups"
 SOURCE_SCRIPTS = {
     "locanto": "src/sources/locanto.py",
     "doublelist": "src/sources/doublelist.py",
@@ -95,6 +102,150 @@ def _timestamp(value: str | None) -> datetime | None:
     except ValueError:
         return None
     return _utc(parsed)
+
+
+def _recent_source_runs(db_path: str | Path, source: str, limit: int = 3) -> list[tuple]:
+    migrate(db_path)
+    connection = sqlite3.connect(str(db_path), timeout=30)
+    try:
+        return connection.execute(
+            "SELECT id, started_at, finished_at, status, listings_seen, listings_added, error_summary FROM runs WHERE source = ? ORDER BY id DESC LIMIT ?",
+            (source, limit),
+        ).fetchall()
+    finally:
+        connection.close()
+
+
+def consecutive_failures(db_path: str | Path, source: str) -> tuple[int, str | None]:
+    failures = 0
+    last_finished = None
+    for row in _recent_source_runs(db_path, source, CONSECUTIVE_FAILURE_LIMIT):
+        if row[3] not in {"failed", "blocked"}:
+            break
+        failures += 1
+        if last_finished is None:
+            last_finished = row[2] or row[1]
+    return failures, last_finished
+
+
+def source_health(db_path: str | Path = DEFAULT_DB_PATH, now: datetime | None = None) -> dict:
+    current = _utc(now)
+    migrate(db_path)
+    connection = sqlite3.connect(str(db_path), timeout=30)
+    connection.row_factory = sqlite3.Row
+    cutoff = (current - timedelta(days=ERROR_WINDOW_DAYS)).isoformat(timespec="seconds")
+    data = {}
+    try:
+        for source in SOURCE_SCRIPTS:
+            last = connection.execute(
+                "SELECT started_at, finished_at, status, listings_seen, listings_added, error_summary FROM runs WHERE source = ? ORDER BY id DESC LIMIT 1",
+                (source,),
+            ).fetchone()
+            errors = connection.execute(
+                "SELECT COUNT(*) FROM runs WHERE source = ? AND started_at >= ? AND (status IN ('failed', 'blocked') OR (status = 'partial' AND error_summary IS NOT NULL))",
+                (source, cutoff),
+            ).fetchone()[0]
+            streak, last_failure = consecutive_failures(db_path, source)
+            open_until = None
+            circuit_open = False
+            if streak >= CONSECUTIVE_FAILURE_LIMIT and last_failure:
+                failure_time = _timestamp(last_failure)
+                if failure_time is not None:
+                    open_until = (failure_time + timedelta(seconds=CIRCUIT_COOLDOWN_SECONDS)).isoformat(timespec="seconds")
+                    circuit_open = current < failure_time + timedelta(seconds=CIRCUIT_COOLDOWN_SECONDS)
+            data[source] = {
+                "last_run": dict(last) if last else None,
+                "error_count_30d": int(errors),
+                "consecutive_failures": streak,
+                "circuit_open": circuit_open,
+                "circuit_open_until": open_until if circuit_open else None,
+            }
+    finally:
+        connection.close()
+    return {"generated_at": current.isoformat(timespec="seconds"), "sources": data}
+
+
+def _latest_source_run_id(db_path: str | Path, source: str) -> int:
+    connection = sqlite3.connect(str(db_path), timeout=30)
+    try:
+        return int(connection.execute("SELECT COALESCE(MAX(id), 0) FROM runs WHERE source = ?", (source,)).fetchone()[0])
+    finally:
+        connection.close()
+
+
+def _new_source_run(db_path: str | Path, source: str, after_id: int) -> tuple | None:
+    connection = sqlite3.connect(str(db_path), timeout=30)
+    try:
+        return connection.execute(
+            "SELECT id, status, error_summary FROM runs WHERE source = ? AND id > ? ORDER BY id DESC LIMIT 1",
+            (source, after_id),
+        ).fetchone()
+    finally:
+        connection.close()
+
+
+def _record_source_result(
+    db_path: str | Path,
+    source: str,
+    status: str,
+    summary: str,
+    started: datetime,
+    finished_at: datetime | None = None,
+) -> None:
+    finished = _utc(finished_at)
+    connection = sqlite3.connect(str(db_path), timeout=30)
+    try:
+        connection.execute(
+            "INSERT INTO runs (source, started_at, finished_at, status, listings_seen, listings_added, listings_updated, error_summary) VALUES (?, ?, ?, ?, 0, 0, 0, ?)",
+            (source, started.isoformat(timespec="seconds"), finished.isoformat(timespec="seconds"), status, summary[:1000]),
+        )
+        connection.commit()
+    finally:
+        connection.close()
+
+
+def backup_database(
+    db_path: str | Path = DEFAULT_DB_PATH,
+    backup_dir: str | Path = BACKUP_DIR,
+    keep: int = BACKUP_KEEP,
+    now: datetime | None = None,
+) -> dict[str, object]:
+    if keep < 1:
+        raise ValueError("keep must be at least one")
+    database = Path(db_path)
+    migrate(database)
+    directory = Path(backup_dir).expanduser()
+    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(directory, 0o700)
+    timestamp = _utc(now).strftime("%Y%m%dT%H%M%SZ")
+    target = directory / f"hookups-{timestamp}.sqlite3"
+    descriptor, temporary_name = tempfile.mkstemp(prefix=".hookups-", suffix=".sqlite3.tmp", dir=directory)
+    os.close(descriptor)
+    try:
+        source = sqlite3.connect(str(database), timeout=30)
+        destination = sqlite3.connect(temporary_name, timeout=30)
+        try:
+            source.backup(destination)
+            result = destination.execute("PRAGMA integrity_check").fetchone()[0]
+            if result != "ok":
+                raise sqlite3.DatabaseError(f"backup integrity check failed: {result}")
+        finally:
+            destination.close()
+            source.close()
+        os.chmod(temporary_name, 0o600)
+        os.replace(temporary_name, target)
+        backups = sorted(directory.glob("hookups-*.sqlite3"), key=lambda item: item.name, reverse=True)
+        removed = []
+        for old in backups[keep:]:
+            old.unlink()
+            removed.append(old.name)
+        return {"path": str(target), "removed": removed, "kept": min(len(backups), keep)}
+    except Exception:
+        try:
+            Path(temporary_name).unlink()
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _log_start(db_path: str | Path, job_name: str, now: datetime) -> int:
@@ -181,6 +332,21 @@ def _source_floor_state(db_path: str | Path, source: str, now: datetime) -> tupl
         connection.close()
 
 
+def _send_failure_alert(source: str, error: str | None) -> str:
+    settings = read_settings()
+    if not settings["token"] or not settings["chat_id"]:
+        return "telegram_not_configured"
+    message = f"Hookups alert: {source} has failed {CONSECUTIVE_FAILURE_LIMIT} consecutive polls."
+    if error:
+        message += f" Latest error: {error[:500]}"
+    try:
+        send_digest(settings["token"], settings["chat_id"], message)
+        return "telegram_alert_sent"
+    except Exception as exception:
+        logging.warning("source alert delivery failed: %s", type(exception).__name__)
+        return "telegram_alert_failed"
+
+
 def run_source_job(
     source: str,
     db_path: str | Path = DEFAULT_DB_PATH,
@@ -190,12 +356,19 @@ def run_source_job(
     if source not in SOURCE_SCRIPTS:
         raise ValueError(f"unsupported source: {source}")
     current = _utc(now)
+    prior_failures, _ = consecutive_failures(db_path, source)
 
     def action() -> str:
+        streak, last_failure = consecutive_failures(db_path, source)
+        if streak >= CONSECUTIVE_FAILURE_LIMIT and last_failure:
+            failure_time = _timestamp(last_failure)
+            if failure_time and current < failure_time + timedelta(seconds=CIRCUIT_COOLDOWN_SECONDS):
+                return f"skipped=circuit-open; consecutive_failures={streak}; probe_after={(failure_time + timedelta(seconds=CIRCUIT_COOLDOWN_SECONDS)).isoformat(timespec='seconds')}"
         allowed, reason = _source_floor_state(db_path, source, current)
         if not allowed:
             return f"skipped={reason}"
-        command = [sys.executable, "-u", SOURCE_SCRIPTS[source]]
+        before_id = _latest_source_run_id(db_path, source)
+        command = [sys.executable, "-u", SOURCE_SCRIPTS[source], "--db", str(db_path)]
         execute = runner or subprocess.run
         try:
             result = execute(
@@ -208,12 +381,26 @@ def run_source_job(
                 check=False,
             )
         except subprocess.TimeoutExpired:
+            _record_source_result(db_path, source, "failed", "collector exceeded ten-minute cap", current, current if now is not None else None)
             raise RuntimeError("collector exceeded ten-minute cap") from None
         if result.returncode != 0:
+            _record_source_result(db_path, source, "failed", f"collector exited with code {result.returncode}", current, current if now is not None else None)
             raise RuntimeError(f"collector exited with code {result.returncode}")
-        return "collector=complete"
+        completed = _new_source_run(db_path, source, before_id)
+        if completed is None:
+            _record_source_result(db_path, source, "succeeded", "collector completed without a poll row", current, current if now is not None else None)
+            return "collector=complete; poll_row=synthetic-success"
+        if completed[1] in {"failed", "blocked"}:
+            raise RuntimeError(f"collector status={completed[1]}; {completed[2] or 'no error detail'}")
+        return f"collector=complete; source_status={completed[1]}"
 
-    return run_logged(f"source:{source}", action, db_path, current)
+    result = run_logged(f"source:{source}", action, db_path, current)
+    failures, _ = consecutive_failures(db_path, source)
+    if prior_failures < CONSECUTIVE_FAILURE_LIMIT <= failures:
+        latest = _recent_source_runs(db_path, source, 1)
+        alert_state = _send_failure_alert(source, latest[0][6] if latest else None)
+        logging.warning("source=%s consecutive_failures=%s alert=%s", source, failures, alert_state)
+    return result
 
 
 def run_digest_job(
@@ -280,10 +467,23 @@ def run_purge_job(
     return run_logged("purge", action, db_path, now)
 
 
+def run_backup_job(
+    db_path: str | Path = DEFAULT_DB_PATH,
+    backup_dir: str | Path = BACKUP_DIR,
+    now: datetime | None = None,
+) -> str:
+    def action() -> str:
+        result = backup_database(db_path, backup_dir, BACKUP_KEEP, now)
+        return f"backup={Path(result['path']).name}; kept={result['kept']}; removed={len(result['removed'])}"
+
+    return run_logged("backup", action, db_path, now)
+
+
 def build_scheduler(
     db_path: str | Path = DEFAULT_DB_PATH,
     output_path: str | Path = DEFAULT_OUTPUT,
     timezone_name: str = LOCAL_TIMEZONE,
+    backup_dir: str | Path = BACKUP_DIR,
 ) -> BackgroundScheduler:
     zone = ZoneInfo(timezone_name)
     migrate(db_path)
@@ -320,6 +520,13 @@ def build_scheduler(
         id="purge-03-local",
         name="purge:03:00-local",
         args=(str(db_path), str(output_path)),
+    )
+    scheduler.add_job(
+        run_backup_job,
+        trigger=SymmetricCronTrigger(2, 30, timezone_name),
+        id="backup-0230-local",
+        name="backup:02:30-local",
+        args=(str(db_path), str(backup_dir)),
     )
     return scheduler
 

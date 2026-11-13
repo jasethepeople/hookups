@@ -22,6 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.db import DEFAULT_DB_PATH, migrate
+from src.sources.retry import RETRYABLE_STATUS_CODES, with_retries
 
 PROFILE_PATH = PROJECT_ROOT / "config" / "profile.yaml"
 GAPS_PATH = PROJECT_ROOT / "docs" / "GAPS.md"
@@ -354,7 +355,11 @@ def collect(
             for url in pending:
                 fetched_any = True
                 try:
-                    response = active_client.get(url)
+                    response = with_retries(
+                        lambda: active_client.get(url),
+                        should_retry=lambda item: item.status_code in RETRYABLE_STATUS_CODES,
+                        retry_exceptions=(httpx.RequestError,),
+                    )
                     headers = {name: response.headers.get(name, "") for name in SAFE_RESPONSE_HEADERS if response.headers.get(name) is not None}
                     error = None
                     body = response.text if len(response.content) <= MAX_RESPONSE_BYTES else ""

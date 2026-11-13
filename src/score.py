@@ -14,6 +14,7 @@ import yaml
 from dotenv import dotenv_values
 
 from src.db import DEFAULT_DB_PATH, PROJECT_ROOT, migrate
+from src.sources.retry import RETRYABLE_STATUS_CODES, with_retries
 
 WEIGHTS = {
     "distance": 25,
@@ -287,7 +288,11 @@ def _model_why(model_url: str, score: int, components: dict[str, int]) -> str | 
         "Return only the two sentences."
     )
     try:
-        response = httpx.post(model_url, json={"input": prompt}, timeout=15.0, follow_redirects=False)
+        response = with_retries(
+            lambda: httpx.post(model_url, json={"input": prompt}, timeout=15.0, follow_redirects=False),
+            should_retry=lambda item: item.status_code in RETRYABLE_STATUS_CODES,
+            retry_exceptions=(httpx.RequestError,),
+        )
         response.raise_for_status()
         return _two_sentences(_response_text(response))
     except (httpx.HTTPError, ValueError, TypeError):

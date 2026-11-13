@@ -24,6 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from src.db import DEFAULT_DB_PATH, migrate
 from src.sources.browser import fetch_with_browser, is_challenge
+from src.sources.retry import RETRYABLE_STATUS_CODES, with_retries
 
 PROFILE_PATH = PROJECT_ROOT / "config" / "profile.yaml"
 GAPS_PATH = PROJECT_ROOT / "docs" / "GAPS.md"
@@ -313,7 +314,11 @@ def collect(
                     failures.append("source_time_cap_reached")
                     break
                 try:
-                    response = active_client.get(url)
+                    response = with_retries(
+                        lambda: active_client.get(url),
+                        should_retry=lambda item: item.status_code in RETRYABLE_STATUS_CODES,
+                        retry_exceptions=(httpx.RequestError,),
+                    )
                     headers = _response_headers(response.headers)
                     body = response.text if len(response.content) <= MAX_RESPONSE_BYTES else ""
                     error = None if body or not response.content else "response_too_large"
