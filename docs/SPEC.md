@@ -70,6 +70,12 @@ The dashboard is private and local-only by default; when hosted on Zo, run it as
 - Grindr variants are stats-forward and at most 10 words; Doublelist variants are 3–4 sentences containing explicit self-stats plus one specific title/body hook; Reddit variants are short comments.
 - Use only facts in `profile.self_stats`; never infer personal facts. Skip Grindr and Doublelist until self-stats are configured. Drafting never sends a message.- On the dashboard, approval copies the exact variant to the clipboard and records `contacts.status='sent'` with its UTC `ts`; clipboard failure prevents approval. Editing and skipping update the local draft only. The private Telegram bot accepts `/log <url> <replied|ghosted|met>` for a known listing; it never contacts the listing author.
 
+## Personal ads
+
+- Generate one Locanto and one Doublelist ad from `config/profile.yaml`, with three title options and two body variants per platform, plus a photo checklist.
+- Use only explicitly configured `self_stats`; when none are present, keep the copy generic and free of personal claims or fill-in placeholders. Reject a configured age under 18.
+- Keep the ads consensual, non-commercial, local-platform appropriate, and privacy-conscious. This tool generates text only; it never posts or sends.
+
 ## Scheduler
 
 - Run Locanto every 30 minutes, Doublelist every 45 minutes, and Squirt and Reddit every 60 minutes.
