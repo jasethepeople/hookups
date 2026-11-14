@@ -18,6 +18,7 @@ from jinja2 import Environment, select_autoescape
 
 from src.db import DEFAULT_DB_PATH, migrate
 from src.draft import approve_draft as approve_draft_record, edit_draft as edit_draft_record, generate_drafts, skip_draft as skip_draft_record
+from src.grindr_webhook import app as grindr_webhook_app
 from src.dedupe import dedupe_records
 from src.normalize import normalize_record
 from src.score import load_profile, model_url_from_env, score_records
@@ -143,6 +144,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Hookups Private Feed", docs_url=None, redoc_url=None, lifespan=lifespan)
+app.mount("/ingest", grindr_webhook_app)
 
 
 def _now() -> datetime:

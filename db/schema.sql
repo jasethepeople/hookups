@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS listings (
     id INTEGER PRIMARY KEY,
-    source TEXT NOT NULL CHECK (source IN ('locanto', 'doublelist', 'squirt', 'reddit', 'reddit-r4r', 'grindr-via-notification-bridge')),
+    source TEXT NOT NULL CHECK (source IN ('locanto', 'doublelist', 'squirt', 'reddit', 'reddit-r4r', 'grindr', 'grindr-via-notification-bridge')),
     dedupe_key TEXT NOT NULL,
     source_id TEXT,
     canonical_url TEXT,
@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS drafts (
 
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY,
-    source TEXT NOT NULL CHECK (source IN ('locanto', 'doublelist', 'squirt', 'reddit', 'reddit-r4r', 'grindr-via-notification-bridge', 'scheduler')),
+    source TEXT NOT NULL CHECK (source IN ('locanto', 'doublelist', 'squirt', 'reddit', 'reddit-r4r', 'grindr', 'grindr-via-notification-bridge', 'scheduler')),
     started_at TEXT NOT NULL,
     finished_at TEXT,
     status TEXT NOT NULL CHECK (status IN ('running', 'succeeded', 'partial', 'blocked', 'failed')),
@@ -67,7 +67,7 @@ CREATE TABLE IF NOT EXISTS runs (
 );
 
 CREATE TABLE IF NOT EXISTS http_cache (
-    source TEXT NOT NULL CHECK (source IN ('locanto', 'doublelist', 'squirt', 'reddit', 'reddit-r4r', 'grindr-via-notification-bridge')),
+    source TEXT NOT NULL CHECK (source IN ('locanto', 'doublelist', 'squirt', 'reddit', 'reddit-r4r', 'grindr', 'grindr-via-notification-bridge')),
     url TEXT NOT NULL,
     fetched_at TEXT NOT NULL,
     status_code INTEGER NOT NULL CHECK (status_code BETWEEN 0 AND 599),

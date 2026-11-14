@@ -5,7 +5,7 @@ import sqlite3
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = PROJECT_ROOT / "db" / "schema.sql"
 DEFAULT_DB_PATH = PROJECT_ROOT / "db" / "hookups.sqlite3"
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 REBUILD_TABLES = ("scores", "contacts", "drafts", "runs", "http_cache", "listings")
 COPY_COLUMNS = {
     "listings": (
@@ -161,9 +161,10 @@ def migrate(db_path: str | Path | None = None) -> None:
         legacy_upgrade = current_version in (1, 2)
         runs_upgrade = current_version in (3, 4)
         approval_upgrade = current_version in (3, 4, 5, 6)
+        source_upgrade = current_version == 7
         if current_version == 0:
             legacy_upgrade = any(_table_exists(connection, table) for table in REBUILD_TABLES)
-        if legacy_upgrade or runs_upgrade or approval_upgrade:
+        if legacy_upgrade or runs_upgrade or approval_upgrade or source_upgrade:
             connection.execute("PRAGMA foreign_keys = OFF")
         connection.execute("BEGIN IMMEDIATE")
         try:
@@ -175,7 +176,9 @@ def migrate(db_path: str | Path | None = None) -> None:
                     _upgrade_scheduler_runs(connection, schema)
                 if approval_upgrade:
                     _upgrade_approval_tables(connection, schema)
-                if not runs_upgrade and not approval_upgrade:
+                if source_upgrade:
+                    _upgrade_source_checks(connection, schema)
+                if not runs_upgrade and not approval_upgrade and not source_upgrade:
                     _execute_schema(connection, schema)
             connection.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
             violations = connection.execute("PRAGMA foreign_key_check").fetchall()
@@ -186,7 +189,7 @@ def migrate(db_path: str | Path | None = None) -> None:
             if connection.in_transaction:
                 connection.rollback()
             raise
-        if legacy_upgrade or runs_upgrade or approval_upgrade:
+        if legacy_upgrade or runs_upgrade or approval_upgrade or source_upgrade:
             connection.execute("PRAGMA foreign_keys = ON")
     finally:
         connection.close()

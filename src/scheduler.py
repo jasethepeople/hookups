@@ -136,7 +136,7 @@ def source_health(db_path: str | Path = DEFAULT_DB_PATH, now: datetime | None = 
     cutoff = (current - timedelta(days=ERROR_WINDOW_DAYS)).isoformat(timespec="seconds")
     data = {}
     try:
-        for source in SOURCE_SCRIPTS:
+        for source in (*SOURCE_SCRIPTS, "grindr"):
             last = connection.execute(
                 "SELECT started_at, finished_at, status, listings_seen, listings_added, error_summary FROM runs WHERE source = ? ORDER BY id DESC LIMIT 1",
                 (source,),
